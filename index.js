@@ -2,6 +2,28 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors")
+const jwt = require("jsonwebtoken")
+
+const jwtSecret = "matheusferroca"
+
+function auth (req, res, next){
+    const authToken = req.headers['authorization']
+    if(authToken != undefined){
+        const bearer = authToken.split(" ")
+        let token = bearer[1]
+        jwt.verify(token, jwtSecret,(err, data) => {
+            if(err){
+                res.sendStatus(401)
+            }else{
+                req.token = token
+                req.loggerUser = {id: data.id, email: data.email}
+                next()
+            }
+        })
+    }else{
+        res.sendStatus(401)
+    }
+}
 
 app.use(cors())
 app.use(bodyParser.urlencoded({extended: false}));
@@ -27,18 +49,26 @@ var DB ={
             year: 2021,
             price: 100090
         }
+    ],
+    users: [
+        {
+            id:1,
+            name: "matheus",
+            email: "ferra",
+            password: "1234"
+        }
     ]
 }
 app.get("/", (req, res) => {
     res.status(200)
     res.send("BEM VINDO A MINHA PRIMEIRA API")
 })
-app.get("/games",(req, res) => {
+app.get("/games",auth,(req, res) => {
     res.status(200)
     res.json(DB.games)
 })
 
-app.get("/game/:id", (req,res) => {
+app.get("/game/:id", auth, (req,res) => {
     if(isNaN(req.params.id)){
         res.sendStatus(400)
     }else{
@@ -53,7 +83,7 @@ app.get("/game/:id", (req,res) => {
     }
 })
 
-app.post("/game", (req, res) => {
+app.post("/game", auth, (req, res) => {
     var {title, price, year} = req.body
     DB.games.push({
         id: 4,
@@ -64,7 +94,7 @@ app.post("/game", (req, res) => {
     res.sendStatus(200)
 })
 
-app.delete("/game/:id", (req, res) => {
+app.delete("/game/:id", auth, (req, res) => {
     if(isNaN(req.params.id)){
         res.sendStatus(400)
     }else{
@@ -79,7 +109,7 @@ app.delete("/game/:id", (req, res) => {
     }
 })
 
-app.put("/game/:id", (req,res) => {
+app.put("/game/:id", auth, (req,res) => {
     if(isNaN(req.params.id)){
         res.sendStatus(400)
     }else{
@@ -100,6 +130,21 @@ app.put("/game/:id", (req,res) => {
         }else{
             res.sendStatus(404)
         }
+    }
+})
+
+app.post("/auth", auth, (req, res) => {
+    let {email, password} = req.body
+    let user = DB.users.find(user => user.email == email)
+    if(user.password == password){
+        jwt.sign({id: user.id, email: user.email}, jwtSecret, {expiresIn: "1h"}, (err, token) => {
+            if(err){
+                res.sendStatus(400)
+            }else{
+                res.status(200)
+                res.json({token: token})
+            }
+        })
     }
 })
 
